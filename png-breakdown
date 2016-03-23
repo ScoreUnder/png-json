@@ -1,0 +1,62 @@
+#!/usr/bin/perl
+use 5.010;
+use strict;
+use warnings;
+no warnings 'experimental::smartmatch';
+
+use Digest::CRC ();
+use JSON::XS ();
+use MIME::Base64 'encode_base64';
+use Carp 'croak';
+
+sub safe_read_stdin($) {
+    my ($len) = @_;
+    my $res = read(STDIN, my $val, $len);
+    croak "read: $!" if !defined $res;
+    croak 'Unexpected EOF' if $res != $len;
+    $val
+}
+
+sub breakdown_png {
+    my %opts = @_;
+    my $check_crc = $opts{check_crc};
+
+    my $magic = unpack 'H16', safe_read_stdin 8;
+    $magic eq '89504e470d0a1a0a' or die "Bad magic $magic\n";
+
+    my @chunks;
+    while (1) {
+        my ($length, $name) = unpack 'N a4', safe_read_stdin 8;
+        my ($data, $crc) = unpack "a$length H8", safe_read_stdin $length + 4;
+
+        my $chunk = {
+            name => $name,
+            crc  => $crc,
+            data => encode_base64($data, ''),
+        };
+
+        if ($check_crc) {
+            my $digest = Digest::CRC->new(type => 'crc32');
+            $digest->add($name)->add($data);
+            $$chunk{crc_calc} = my $crc_calc = $digest->hexdigest;
+            $$chunk{crc_ok} = \(0+($crc_calc eq $crc));  # it's a boolean. perldoc Types::Serialiser
+        }
+
+        push @chunks, $chunk;
+        last if $name eq 'IEND';
+    }
+    @chunks
+}
+
+# Argument parsing.
+# I could pull in Getopt but that seems a waste for something so short.
+my $check_crc = 0;
+
+for (@ARGV) {
+    when (['--check-crc', '-c']) { $check_crc = 1 }
+    default { die qq(Bad option "$_" (try --check-crc | -c).\nThe file is passed on stdin.\n) }
+}
+
+binmode STDIN;
+my @chunks = breakdown_png(check_crc => $check_crc);
+print JSON::XS->new->ascii->encode(\@chunks);

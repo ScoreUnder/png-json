@@ -1,0 +1,32 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use Digest::CRC ();
+use JSON::XS 'decode_json';
+use MIME::Base64 'decode_base64';
+
+undef $/;
+my $var = <STDIN> // die "Need some json on stdin\n";
+$var = decode_json $var;
+
+die "Need a json list on stdin\n" unless ref $var eq 'ARRAY';
+
+binmode STDOUT;
+print pack 'H16', '89504e470d0a1a0a';
+for (@$var) {
+    my $obj = $_;
+    die "Found a non-object in the list\n" unless ref $obj eq 'HASH';
+    my ($name, $data, $crc) = @{$obj}{qw(name data crc)};
+    die "Object has no tag name\n" unless defined $name;
+    die "Object's tag name is not exactly 4 characters\n" unless length $name == 4;
+    die "Object has no data\n" unless defined $data;
+    $data = decode_base64 $data;
+    unless ($crc) {
+        my $digest = Digest::CRC->new(type => 'crc32');
+        $digest->add($name)->add($data);
+        $crc = $digest->hexdigest;
+    }
+    my $len = length $data;
+    print pack "N a4 a$len H8", $len, $name, $data, $crc;
+}
