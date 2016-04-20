@@ -1,8 +1,6 @@
 #!/usr/bin/perl
-use 5.010;
 use strict;
 use warnings;
-no warnings 'experimental::smartmatch';
 
 use Digest::CRC ();
 use JSON::XS ();
@@ -53,8 +51,8 @@ sub breakdown_png {
 my $check_crc = 0;
 
 for (@ARGV) {
-    when (['--check-crc', '-c']) { $check_crc = 1 }
-    default { die qq(Bad option "$_" (try --check-crc | -c).\nThe file is passed on stdin.\n) }
+    if ($_ eq '--check-crc' || $_ eq '-c') { $check_crc = 1 }
+    else { die qq(Bad option "$_" (try --check-crc | -c).\nThe file is passed on stdin.\n) }
 }
 
 binmode STDIN;
