@@ -32,3 +32,14 @@ chunk and `name` is the chunk type.
 When inserting new chunks, especially tEXt, ensure that you remember to
 base64-encode the data you provide so that the format conforms to what
 these tools expect.
+
+But why?
+========
+
+Because it's easier than using a hex editor to do the same. PNG
+metadata edits can be hacked together with a shell script, and you can
+extract arbitrary metadata with `jq` or similar utilities.
+
+If you used a hex editor to add raw chunks, you would also need to deal
+with the CRC and length values, while this tool automatically populates
+those fields with the correct values.
